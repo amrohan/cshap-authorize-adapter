@@ -1,0 +1,28 @@
+[2025-06-08 13:00:12] Log file created: logs/migro_20250608_130012.log
+[2025-06-08 13:00:12] Migro - C# Attribute Updater - Execution Started
+[2025-06-08 13:00:12] ===================================================
+[2025-06-08 13:00:12] Starting C# Attribute Updater
+[2025-06-08 13:00:12] CSV File: maps.csv
+[2025-06-08 13:00:12] Controllers Directory: ./controllers
+[2025-06-08 13:00:12] Mode: OVERWRITE - Existing attributes will be replaced automatically
+[2025-06-08 13:00:12] ---------------------------------------------------
+[2025-06-08 13:00:12] Loaded 3 mappings from CSV
+[2025-06-08 13:00:12] Processing file: UserController.cs, Method: GetTodoItems
+[2025-06-08 13:00:12] INFO: Attribute already correct for UserController.cs:GetTodoItems.
+[2025-06-08 13:00:12] Processing file: UserController.cs, Method: GetTodoItem
+[2025-06-08 13:00:12] INFO: Attribute already correct for UserController.cs:GetTodoItem.
+[2025-06-08 13:00:12] Processing file: UserController.cs, Method: PutTodoItem
+[2025-06-08 13:00:12] INFO: Attribute already correct for UserController.cs:PutTodoItem.
+[2025-06-08 13:00:12] ✨ All operations complete.
+[2025-06-08 13:00:12] ===================================================
+[2025-06-08 13:00:12] EXECUTION SUMMARY
+[2025-06-08 13:00:12] ===================================================
+[2025-06-08 13:00:12] Execution Time: 397.542µs
+[2025-06-08 13:00:12] Total Files Processed: 3
+[2025-06-08 13:00:12] Files Modified: 0
+[2025-06-08 13:00:12] Files Skipped: 3
+[2025-06-08 13:00:12] Attributes Added: 0
+[2025-06-08 13:00:12] Attributes Replaced: 0
+[2025-06-08 13:00:12] Errors Encountered: 0
+[2025-06-08 13:00:12] ===================================================
+[2025-06-08 13:00:12] 📝 Detailed log saved to: migro_20250608_130012.log

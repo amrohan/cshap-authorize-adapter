@@ -1,5 +1,5 @@
 filename,controller,method,attribute
-UserController.cs,UserController,GetTodoItems,"[userRole=""Admin""]"
-UserController.cs,UserController,GetTodoItem,"[userRole=""Vessel""]"
-UserController.cs,UserController,PutTodoItem,"[userRole=""Shipping""]"
+UserController.cs,UserController,GetTodoItems,"[Authorize(Roles = ""Administrator"")]"
+UserController.cs,UserController,GetTodoItem,"[Authorize(Roles = ""Guest"")]"
+UserController.cs,UserController,PutTodoItem,"[Authorize(Roles = ""User"")]"
 

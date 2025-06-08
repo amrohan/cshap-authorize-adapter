@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 )
@@ -48,6 +49,11 @@ func isHttpAttribute(line string) bool {
 		}
 	}
 	return false
+}
+
+func isAuthorizeAttribute(line string) bool {
+	trimmedLine := strings.TrimSpace(line)
+	return strings.HasPrefix(trimmedLine, "[Authorize")
 }
 
 func writeLog(message string) {
@@ -171,15 +177,23 @@ func main() {
 	csvPath := args[0]
 	controllersDir := args[1]
 
-	logFileName := fmt.Sprintf("attribute_updater_%s.log", time.Now())
+	logDir := "logs"
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		log.Printf("Warning: Could not create log directory: %v", err)
+		logDir = "."
+	}
+
+	logFileName := fmt.Sprintf("migro_%s.log", time.Now().Format("20060102_150405"))
+	logFilePath := filepath.Join(logDir, logFileName)
+
 	var err error
-	logFile, err = os.Create(logFileName)
+	logFile, err = os.Create(logFilePath)
 	if err != nil {
 		log.Printf("Warning: Could not create log file: %v", err)
 	} else {
 		defer logFile.Close()
-		writeLogOnly(fmt.Sprintf("Log file created: %s", logFileName))
-		writeLogOnly("C# Attribute Updater - Execution Started")
+		writeLogOnly(fmt.Sprintf("Log file created: %s", logFilePath))
+		writeLogOnly("Migro - C# Attribute Updater - Execution Started")
 		writeLogOnly("=" + strings.Repeat("=", 50))
 	}
 
@@ -242,77 +256,112 @@ func main() {
 			if strings.Contains(line, " "+mapping.Method+"(") {
 				methodFound = true
 
+				var authorizeIndices []int
+				var httpAttrIndex = -1
+				var attrBlockStartIndex = -1
+
 				for j := i - 1; j >= 0; j-- {
-					currentLine := lines[j]
-					if isHttpAttribute(currentLine) {
-						newAttr := "    " + mapping.Attribute
-
-						if j > 0 && strings.HasPrefix(strings.TrimSpace(lines[j-1]), "[userRole=") {
-							oldAttr := lines[j-1]
-
-							if strings.TrimSpace(oldAttr) == strings.TrimSpace(newAttr) {
-								writeLog(fmt.Sprintf("INFO: Attribute already correct in %s:%s", mapping.Filename, mapping.Method))
-								break
-							}
-
-							writeLog(fmt.Sprintf("📄 File: %s", mapping.Filename))
-							writeLog(fmt.Sprintf("🔧 Method: %s", mapping.Method))
-							writeLog("🔁 Found existing attribute to replace:")
-							writeLog(fmt.Sprintf("   OLD: %s", strings.TrimSpace(oldAttr)))
-							writeLog(fmt.Sprintf("   NEW: %s", strings.TrimSpace(newAttr)))
-
-							if *preview {
-								writeLog("   [PREVIEW MODE] - Would replace existing attribute")
-								break
-							}
-
-							shouldReplace := false
-							if *overwrite {
-								shouldReplace = true
-								writeLog("   👉 Overwriting due to --overwrite flag.")
-							} else {
-								shouldReplace = promptUser("❓ Do you want to overwrite it? (y/N): ")
-								if shouldReplace {
-									writeLog("   ✅ User confirmed overwrite")
-								} else {
-									writeLog("   ❌ User declined overwrite")
-								}
-							}
-
-							if shouldReplace {
-								lines[j-1] = newAttr
-								fileModified = true
-								stats.AttributesReplaced++
-							}
-
-						} else {
-							writeLog(fmt.Sprintf("📄 File: %s", mapping.Filename))
-							writeLog(fmt.Sprintf("🔧 Method: %s", mapping.Method))
-							writeLog(fmt.Sprintf("➕ Inserting new attribute above: %s", strings.TrimSpace(currentLine)))
-							writeLog(fmt.Sprintf("   NEW: %s", strings.TrimSpace(newAttr)))
-
-							if *preview {
-								writeLog("   [PREVIEW MODE] - Would insert new attribute")
-								break
-							}
-
-							var newLines []string
-							newLines = append(newLines, lines[:j]...)
-							newLines = append(newLines, newAttr)
-							newLines = append(newLines, lines[j:]...)
-							lines = newLines
-							fileModified = true
-							stats.AttributesAdded++
-							i++
-						}
-
-						break
+					trimmedLine := strings.TrimSpace(lines[j])
+					if trimmedLine == "" {
+						continue
 					}
-					trimmedLine := strings.TrimSpace(currentLine)
-					if trimmedLine != "" && !strings.HasPrefix(trimmedLine, "[") {
+					if strings.HasPrefix(trimmedLine, "[") {
+						attrBlockStartIndex = j
+						if isHttpAttribute(trimmedLine) {
+							httpAttrIndex = j
+						}
+						if isAuthorizeAttribute(trimmedLine) {
+							authorizeIndices = append(authorizeIndices, j)
+						}
+					} else {
 						break
 					}
 				}
+
+				if httpAttrIndex == -1 {
+					writeLog(fmt.Sprintf("WARNING: Could not find an HTTP attribute for method '%s' in '%s'. Skipping.", mapping.Method, mapping.Filename))
+					break
+				}
+
+				if attrBlockStartIndex == -1 {
+					attrBlockStartIndex = httpAttrIndex
+				}
+
+				indent := ""
+				for _, char := range lines[httpAttrIndex] {
+					if char == ' ' || char == '\t' {
+						indent += string(char)
+					} else {
+						break
+					}
+				}
+				newAttrLine := indent + mapping.Attribute
+
+				isAlreadyCorrect := len(authorizeIndices) == 1 && strings.TrimSpace(lines[authorizeIndices[0]]) == strings.TrimSpace(newAttrLine)
+
+				if isAlreadyCorrect {
+					writeLog(fmt.Sprintf("INFO: Attribute already correct for %s:%s.", mapping.Filename, mapping.Method))
+					break
+				}
+
+				if len(authorizeIndices) > 0 {
+					writeLog(fmt.Sprintf("📄 File: %s", mapping.Filename))
+					writeLog(fmt.Sprintf("🔧 Method: %s", mapping.Method))
+					writeLog("🔁 Found existing attribute(s) to replace/clean up:")
+
+					for k := len(authorizeIndices) - 1; k >= 0; k-- {
+						writeLog(fmt.Sprintf("   OLD: %s", strings.TrimSpace(lines[authorizeIndices[k]])))
+					}
+					writeLog(fmt.Sprintf("   NEW: %s", strings.TrimSpace(newAttrLine)))
+				} else {
+					writeLog(fmt.Sprintf("📄 File: %s", mapping.Filename))
+					writeLog(fmt.Sprintf("🔧 Method: %s", mapping.Method))
+					writeLog(fmt.Sprintf("➕ Inserting new attribute for method"))
+					writeLog(fmt.Sprintf("   NEW: %s", strings.TrimSpace(newAttrLine)))
+				}
+
+				if *preview {
+					writeLog("   [PREVIEW MODE] - No changes will be applied.")
+					break
+				}
+
+				applyChange := true
+				if len(authorizeIndices) > 0 {
+					if *overwrite {
+						writeLog("   👉 Overwriting due to --overwrite flag.")
+					} else {
+						applyChange = promptUser("❓ Do you want to apply this change? (y/N): ")
+						if applyChange {
+							writeLog("   ✅ User confirmed change.")
+						} else {
+							writeLog("   ❌ User declined change.")
+						}
+					}
+				}
+
+				if !applyChange {
+					break
+				}
+
+				var newLines []string
+				newLines = append(newLines, lines[:attrBlockStartIndex]...)
+				newLines = append(newLines, newAttrLine)
+				for k := attrBlockStartIndex; k < i; k++ {
+					isOldAuthorize := slices.Contains(authorizeIndices, k)
+					if !isOldAuthorize {
+						newLines = append(newLines, lines[k])
+					}
+				}
+				newLines = append(newLines, lines[i:]...)
+
+				lines = newLines
+				fileModified = true
+				if len(authorizeIndices) > 0 {
+					stats.AttributesReplaced++
+				} else {
+					stats.AttributesAdded++
+				}
+
 				break
 			}
 		}
@@ -323,7 +372,8 @@ func main() {
 		}
 
 		if fileModified && !*preview {
-			err := os.WriteFile(filePath, []byte(strings.Join(lines, "\n")+"\n"), 0644)
+			output := strings.Join(lines, "\n") + "\n"
+			err := os.WriteFile(filePath, []byte(output), 0644)
 			if err != nil {
 				writeLog(fmt.Sprintf("ERROR: Writing updated file %s: %v", filePath, err))
 				stats.Errors++
@@ -345,6 +395,6 @@ func main() {
 	printStats()
 
 	if logFile != nil {
-		writeLog(fmt.Sprintf("📝 Detailed log saved to: %s", logFileName))
+		writeLog(fmt.Sprintf("📝 Detailed log saved to: %s/%s", logDir, logFileName))
 	}
 }

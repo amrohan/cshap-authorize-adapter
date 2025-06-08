@@ -15,6 +15,7 @@ public class TodoItemsController : ControllerBase
         _context = context;
     }
 
+    [Authorize(Roles = "Administrator")]
     [HttpGet]
     public async Task<ActionResult<IEnumerable<TodoItemDTO>>> GetTodoItems()
     {
@@ -23,6 +24,7 @@ public class TodoItemsController : ControllerBase
             .ToListAsync();
     }
 
+    [Authorize(Roles = "Guest")]
     [HttpGet("{id}")]
     public async Task<ActionResult<TodoItemDTO>> GetTodoItem(long id)
     {
@@ -37,6 +39,7 @@ public class TodoItemsController : ControllerBase
     }
     // </snippet_GetByID>
 
+    [Authorize(Roles = "User")]
     [HttpPut("{id}")]
     public async Task<IActionResult> PutTodoItem(long id, TodoItemDTO todoDTO)
     {

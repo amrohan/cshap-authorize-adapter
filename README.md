@@ -1,66 +1,63 @@
-# C# Attribute Updater
+# Migro
 
-A powerful Go-based command-line tool designed to automatically update C# controller methods with custom attributes based on CSV mappings. This tool is particularly useful for bulk updates of authorization attributes, logging decorators, or any custom method-level attributes in ASP.NET Core applications.
+A command-line tool that automatically updates C# controller methods with authorization attributes based on CSV mappings. This tool is designed to help manage role-based authorization across multiple controller files efficiently.
 
 ## Features
 
-- 🔄 **Bulk Attribute Updates**: Process multiple files and methods in one operation
-- 🎯 **Precise Method Targeting**: Uses CSV mappings to target specific methods in specific files
-- 🛡️ **Smart Conflict Detection**: Detects existing attributes and handles conflicts intelligently
-- 🎮 **Multiple Operation Modes**: Interactive, automatic overwrite, and preview modes
-- 📊 **Comprehensive Statistics**: Detailed execution reports with timing and operation counts
-- 📝 **Detailed Logging**: Timestamped log files for audit trails and debugging
-- ⚡ **Fast Processing**: Efficient file parsing and modification
-- 🔍 **Preview Mode**: See what changes would be made without modifying files
+- 📝 **CSV-driven updates**: Define your authorization mappings in a simple CSV file
+- 🔄 **Smart attribute replacement**: Automatically replaces existing `[Authorize]` attributes
+- 🔍 **Preview mode**: See what changes will be made without modifying files
+- 🤖 **Batch processing**: Update multiple files and methods in one execution
+- 📊 **Detailed logging**: Get comprehensive reports of all operations
+- ⚡ **Three operation modes**: Interactive, Overwrite, and Preview
 
 ## Installation
 
 ### Prerequisites
 
 - Go 1.19 or higher
-- Access to your C# controller files
 
-### Build from Source
+### Build from source
 
 ```bash
-# Clone or download the source code
-git clone <repository-url>
-cd csharp-attribute-updater
-
-# Build the executable
-go build -o attribute-updater main.go
-
-# Or run directly
-go run main.go [flags] <csv-file> <controllers-directory>
+git clone https://github.com/yourusername/migro.git
+cd migro
+go build -o migro
 ```
+
+### Download binary
+
+Download the latest release from the [releases page](https://github.com/yourusername/migro/releases).
 
 ## Usage
 
 ### Basic Syntax
 
 ```bash
-./attribute-updater [flags] <csv-file-path> <controllers-directory>
+./migro [flags] <csv-file-path> <controllers-directory>
 ```
+
+### Command-line Flags
+
+- `--preview`: Preview changes without modifying files
+- `--overwrite`: Automatically overwrite existing attributes without prompting
 
 ### Operation Modes
 
 #### 1. Interactive Mode (Default)
 
-Prompts for confirmation when conflicts are detected:
+Prompts for confirmation when conflicts are found:
 
 ```bash
-./attribute-updater mappings.csv ./MyProject/Controllers
+./migro mappings.csv ./Controllers
 ```
 
-- Press `Enter` or type `n` to skip conflicts (default: No)
-- Type `y` or `yes` to proceed with changes
+#### 2. Overwrite Mode
 
-#### 2. Automatic Overwrite Mode
-
-Automatically replaces existing attributes without prompting:
+Automatically replaces existing attributes:
 
 ```bash
-./attribute-updater --overwrite mappings.csv ./MyProject/Controllers
+./authorize-updater --overwrite mappings.csv ./Controllers
 ```
 
 #### 3. Preview Mode
@@ -68,283 +65,199 @@ Automatically replaces existing attributes without prompting:
 Shows what changes would be made without modifying files:
 
 ```bash
-./attribute-updater --preview mappings.csv ./MyProject/Controllers
+./migro --preview mappings.csv ./Controllers
 ```
-
-### Command-Line Flags
-
-| Flag          | Description                                                   |
-| ------------- | ------------------------------------------------------------- |
-| `--overwrite` | Automatically overwrite existing attributes without prompting |
-| `--preview`   | Preview changes without modifying files                       |
-| `--help`      | Show help message and usage examples                          |
 
 ## CSV File Format
 
-The tool requires a CSV file with the following structure:
+Create a CSV file with the following columns:
+
+| Column       | Description             | Example                                |
+| ------------ | ----------------------- | -------------------------------------- |
+| `filename`   | Controller file name    | `UserController.cs`                    |
+| `controller` | Controller class name   | `UserController`                       |
+| `method`     | Method name to update   | `GetTodoItems`                         |
+| `attribute`  | New authorize attribute | `[Authorize(Roles = "Administrator")]` |
+
+### Example CSV (mappings.csv)
 
 ```csv
 filename,controller,method,attribute
-UserController.cs,UserController,GetTodoItems,"[userRole=""Admin""]"
-UserController.cs,UserController,GetTodoItem,"[userRole=""Vessel""]"
-UserController.cs,UserController,PutTodoItem,"[userRole=""Shipping""]"
+UserController.cs,UserController,GetTodoItems,"[Authorize(Roles = ""Administrator"")]"
+UserController.cs,UserController,GetTodoItem,"[Authorize(Roles = ""Guest"")]"
+UserController.cs,UserController,PutTodoItem,"[Authorize(Roles = ""User"")]"
+TodoController.cs,TodoController,CreateTodo,"[Authorize(Roles = ""User,Administrator"")]"
 ```
 
-### CSV Columns
+## Example Controller
 
-1. **filename**: Name of the C# controller file (e.g., `UserController.cs`)
-2. **controller**: Controller class name (used for reference, not matching)
-3. **method**: Exact method name to target (e.g., `GetTodoItems`, `GetTodoItem`)
-4. **attribute**: The attribute to add or replace (e.g., `[userRole="Admin"]`)
+### Before Update
 
-### CSV Guidelines
+```csharp
+[Route("api/[controller]")]
+[ApiController]
+public class TodoItemsController : ControllerBase
+{
+    [HttpGet]
+    public async Task<ActionResult<IEnumerable<TodoItemDTO>>> GetTodoItems()
+    {
+        // Method implementation
+    }
 
-- Include header row as shown above (lowercase column names)
-- Method names must match exactly (case-sensitive)
-- **Important**: When attributes contain quotes, use double quotes to escape them in CSV
-  - For `[userRole="Admin"]`, write as `"[userRole=""Admin""]"`
-  - The outer quotes are CSV field delimiters
-  - The double quotes (`""`) inside represent escaped quotes in CSV format
-- File paths are relative to the controllers directory provided
-- Each row represents one method to be updated
+    [Authorize] // Old generic authorization
+    [HttpGet("{id}")]
+    public async Task<ActionResult<TodoItemDTO>> GetTodoItem(long id)
+    {
+        // Method implementation
+    }
+}
+```
 
-### CSV Escaping Rules
+### After Update
 
-When your attributes contain quotes, follow these CSV escaping rules:
+```csharp
+[Route("api/[controller]")]
+[ApiController]
+public class TodoItemsController : ControllerBase
+{
+    [Authorize(Roles = "Administrator")] // New role-specific authorization
+    [HttpGet]
+    public async Task<ActionResult<IEnumerable<TodoItemDTO>>> GetTodoItems()
+    {
+        // Method implementation
+    }
 
-| Desired Attribute                 | CSV Format                            |
-| --------------------------------- | ------------------------------------- |
-| `[userRole="Admin"]`              | `"[userRole=""Admin""]"`              |
-| `[userRole="Manager"]`            | `"[userRole=""Manager""]"`            |
-| `[authorize(Roles="User,Admin")]` | `"[authorize(Roles=""User,Admin"")]"` |
-
-### Multiple Attributes Example
-
-For adding multiple attributes to different methods:
-
-```csv
-filename,controller,method,attribute
-UserController.cs,UserController,GetUsers,"[userRole=""Admin""]"
-UserController.cs,UserController,CreateUser,"[userRole=""SuperAdmin""]"
-OrderController.cs,OrderController,GetOrders,"[userRole=""Manager""]"
-OrderController.cs,OrderController,DeleteOrder,"[userRole=""Admin""]"
-ProductController.cs,ProductController,GetProducts,"[userRole=""User""]"
-ProductController.cs,ProductController,UpdateProduct,"[userRole=""Manager""]"
+    [Authorize(Roles = "Guest")] // Updated with specific role
+    [HttpGet("{id}")]
+    public async Task<ActionResult<TodoItemDTO>> GetTodoItem(long id)
+    {
+        // Method implementation
+    }
+}
 ```
 
 ## How It Works
 
-1. **Method Detection**: Searches for methods by looking for `MethodName(` patterns
-2. **HTTP Attribute Location**: Finds HTTP attributes (`[HttpGet]`, `[HttpPost]`, etc.) above the method
-3. **Attribute Placement**: Adds new attributes directly above HTTP attributes
-4. **Conflict Handling**: Detects existing `[userRole=` attributes and handles based on mode
-5. **File Modification**: Updates files in-place with proper formatting and POSIX compliance
+1. **CSV Parsing**: Reads the mapping file to understand which methods need updates
+2. **File Discovery**: Locates controller files in the specified directory
+3. **Method Detection**: Finds the target methods within each controller
+4. **Attribute Analysis**: Identifies existing HTTP and Authorization attributes
+5. **Smart Replacement**: Replaces or adds authorization attributes while preserving indentation
+6. **File Updates**: Writes the modified content back to the files (unless in preview mode)
 
 ## Output and Logging
 
-### Console Output
+The tool provides detailed console output and creates a timestamped log file for each execution:
 
-The tool provides real-time feedback with:
+### Console Output Example
 
-- 📄 File processing status
-- 🔧 Method targeting information
-- ➕ Attribute additions
-- 🔁 Attribute replacements
-- ✅ Success confirmations
-- ⚠️ Warnings and errors
-
-### Log Files
-
-Automatic log file creation with format: `attribute_updater_YYYYMMDD_HHMMSS.log`
-
-Log files contain:
-
-- Detailed operation history
-- User decisions (in interactive mode)
-- Error details and stack traces
-- Execution statistics
-
-### Execution Statistics
-
-End-of-run summary includes:
-
-- ⏱️ Total execution time
-- 📁 Files processed/modified/skipped
-- 🏷️ Attributes added/replaced
-- ❌ Errors encountered
-
-## Examples
-
-### Example 1: Basic Usage with Proper CSV
-
-Create a CSV file `mappings.csv`:
-
-```csv
-filename,controller,method,attribute
-UserController.cs,UserController,GetTodoItems,"[userRole=""Admin""]"
-UserController.cs,UserController,GetTodoItem,"[userRole=""Vessel""]"
-UserController.cs,UserController,PutTodoItem,"[userRole=""Shipping""]"
+```
+[2024-01-15 10:30:15] Starting Migro - C# Attribute Updater
+[2024-01-15 10:30:15] Mode: INTERACTIVE - Will prompt for confirmation on conflicts
+[2024-01-15 10:30:15] Loaded 3 mappings from CSV
+[2024-01-15 10:30:16] 📄 File: UserController.cs
+[2024-01-15 10:30:16] 🔧 Method: GetTodoItems
+[2024-01-15 10:30:16] ➕ Inserting new attribute for method
+[2024-01-15 10:30:16]    NEW: [Authorize(Roles = "Administrator")]
+[2024-01-15 10:30:16] ✅ Successfully updated: UserController.cs
 ```
 
-Run the tool:
+### Log File
 
-```bash
-./attribute-updater mappings.csv ./src/Controllers
+A detailed log file is created in the `logs/` directory with the naming pattern: `migro_YYYYMMDD_HHMMSS.log`
+
+### Execution Summary
+
+```
+==================================================
+EXECUTION SUMMARY
+==================================================
+Execution Time: 2.3s
+Total Files Processed: 5
+Files Modified: 3
+Files Skipped: 2
+Attributes Added: 8
+Attributes Replaced: 2
+Errors Encountered: 0
+==================================================
 ```
 
-### Example 2: Batch Update with Auto-Overwrite
+## Supported Attribute Types
 
-Create `user-permissions.csv`:
+The tool recognizes and works with these HTTP attributes:
 
-```csv
-filename,controller,method,attribute
-UserController.cs,UserController,GetProfile,"[userRole=""User""]"
-UserController.cs,UserController,UpdateProfile,"[userRole=""User""]"
-AdminController.cs,AdminController,ManageUsers,"[userRole=""SuperAdmin""]"
-```
+- `[HttpGet]`
+- `[HttpPost]`
+- `[HttpPut]`
+- `[HttpDelete]`
+- `[HttpPatch]`
 
-Run with auto-overwrite:
+And manages these authorization attributes:
 
-```bash
-./attribute-updater --overwrite user-permissions.csv ./MyApp/Controllers
-```
-
-### Example 3: Preview Changes First
-
-```bash
-# Preview changes
-./attribute-updater --preview mappings.csv ./Controllers
-
-# If satisfied, run actual update
-./attribute-updater --overwrite mappings.csv ./Controllers
-```
-
-### Example 4: Processing Multiple Environments
-
-```bash
-# Development environment
-./attribute-updater --overwrite dev-mappings.csv ./src/Dev/Controllers
-
-# Production environment
-./attribute-updater --preview prod-mappings.csv ./src/Prod/Controllers
-```
-
-## Sample C# Code Transformation
-
-### Before
-
-```csharp
-[HttpGet]
-public async Task<IActionResult> GetUsers()
-{
-    // method implementation
-}
-```
-
-### After
-
-```csharp
-[userRole="Admin"]
-[HttpGet]
-public async Task<IActionResult> GetUsers()
-{
-    // method implementation
-}
-```
-
-## Supported HTTP Attributes
-
-The tool recognizes and works with these HTTP method attributes:
-
-- `[HttpGet]` and `[HttpGet(...)]`
-- `[HttpPost]` and `[HttpPost(...)]`
-- `[HttpPut]` and `[HttpPut(...)]`
-- `[HttpDelete]` and `[HttpDelete(...)]`
-- `[HttpPatch]` and `[HttpPatch(...)]`
+- `[Authorize]`
+- `[Authorize(Roles = "...")]`
+- `[Authorize(Policy = "...")]`
+- Any attribute starting with `[Authorize`
 
 ## Error Handling
 
 The tool handles various error scenarios gracefully:
 
-- **File Not Found**: Skips missing files with warning
-- **Invalid CSV**: Reports parsing errors and continues
-- **Method Not Found**: Logs warning and continues with other methods
-- **Permission Issues**: Reports file access errors
-- **Syntax Errors**: Validates attribute syntax before application
+- **Missing files**: Logs error and continues with next file
+- **Method not found**: Warns and skips to next mapping
+- **File permission issues**: Reports error and continues
+- **Malformed CSV**: Validates and reports parsing issues
+- **Invalid file paths**: Provides clear error messages
 
 ## Best Practices
 
-### Before Running
-
-1. **Backup Your Code**: Always commit or backup your codebase before running bulk updates
-2. **Use Preview Mode**: Run with `--preview` first to verify changes
-3. **Test CSV Format**: Validate your CSV file with a small subset first
-4. **Check Permissions**: Ensure write access to target directories
-
-### During Execution
-
-1. **Review Conflicts**: In interactive mode, carefully review each conflict
-2. **Monitor Logs**: Watch console output for errors or warnings
-3. **Verify Statistics**: Check final statistics for unexpected results
-
-### After Running
-
-1. **Review Log Files**: Check generated log files for detailed operation history
-2. **Test Your Application**: Ensure your C# application still compiles and runs
-3. **Code Review**: Review changes before committing to version control
-4. **Run Tests**: Execute your test suite to verify functionality
+1. **Always test first**: Use `--preview` mode to see changes before applying
+2. **Backup your code**: Commit your changes to version control before running
+3. **Validate CSV format**: Ensure proper escaping of quotes in attribute strings
+4. **Check indentation**: The tool preserves existing indentation patterns
+5. **Review logs**: Check the generated log file for any warnings or errors
 
 ## Troubleshooting
 
 ### Common Issues
 
-**Issue**: Tool shows "Method not found"
-**Solution**: Verify method names in CSV exactly match those in source files (case-sensitive)
+**Method not found**
 
-**Issue**: Attributes placed in wrong location  
-**Solution**: Ensure HTTP attributes (`[HttpGet]`, etc.) are present above target methods
+- Ensure the method name in CSV exactly matches the method signature
+- Check for typos in method names
+- Verify the controller file exists in the specified directory
 
-**Issue**: File permission errors
-**Solution**: Check file/directory permissions and ensure write access
+**CSV parsing errors**
 
-**Issue**: CSV parsing errors
-**Solution**: Validate CSV format, check for proper escaping of quotes in attributes
+- Ensure proper quote escaping: `"[Authorize(Roles = ""Admin"")]"`
+- Check for missing columns or incomplete rows
+- Verify file encoding (UTF-8 recommended)
 
-### Debug Mode
+**Permission denied**
 
-For detailed debugging, check the generated log files which contain:
-
-- Line-by-line processing details
-- Exact search patterns used
-- File modification timestamps
-- Complete error stack traces
-
-## License
-
-This project is open-source. Please check the repository for specific license terms.
+- Ensure the tool has write permissions to the controller files
+- Check if files are not read-only or locked by other applications
 
 ## Contributing
 
-Contributions are welcome! Please:
-
 1. Fork the repository
-2. Create a feature branch
-3. Add tests for new functionality
-4. Submit a pull request with clear description
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-## Changelog
+## License
 
-### Version 2.0.0
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-- Added comprehensive logging system
-- Implemented interactive mode with user prompts
-- Added execution statistics and timing
-- Enhanced error handling and reporting
-- Improved CSV validation
-- Added preview mode functionality
+## Support
 
-### Version 1.0.0
+If you encounter any issues or have questions:
 
-- Initial release with basic attribute updating functionality
-- Support for CSV-based mappings
-- HTTP attribute detection and placement
+- Create an issue on GitHub
+- Check the generated log files for detailed error information
+- Ensure your CSV file follows the correct format
+
+---
+
+**Note**: This tool modifies your source code files. Always ensure you have proper backups and version control in place before running the tool on important codebases.
