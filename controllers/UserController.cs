@@ -15,7 +15,6 @@ public class TodoItemsController : ControllerBase
         _context = context;
     }
 
-    [Authorize(Roles = "Administrator")]
     [HttpGet]
     public async Task<ActionResult<IEnumerable<TodoItemDTO>>> GetTodoItems()
     {
